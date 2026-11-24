@@ -51,3 +51,21 @@ export function handleFirestoreError(
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+export function formatFriendlyFirestoreError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  try {
+    const parsed = JSON.parse(raw) as Partial<FirestoreErrorInfo>;
+    if (parsed && typeof parsed === 'object' && parsed.error) {
+      const target = parsed.path ? ` on "${parsed.path}"` : '';
+      if (parsed.error.includes('Missing or insufficient permissions')) {
+        return `Permission denied (${parsed.operationType || 'write'}${target}). Verify your account has write permission in the shared database security rules or /admins collection.`;
+      }
+      return `${parsed.error}${target}`;
+    }
+  } catch {
+    // Not JSON; return raw message below
+  }
+  return raw || 'Unexpected Firestore error occurred.';
+}
+

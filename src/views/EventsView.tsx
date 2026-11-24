@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, Trash2, Users, X } from 'lucide-react';
 import type { EventRegistration, EventStatus, SparkEvent } from '../types/spark';
 import type { EventFormInput } from '../hooks/useSparkData';
 import { normalizeTags } from '../lib/formatters';
+import { formatFriendlyFirestoreError } from '../lib/firestoreError';
 import { SafeImage } from '../components/SafeImage';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -96,7 +97,7 @@ export function EventsView({
           : `Closed registration for "${ev.title}"`
       );
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to update registration status', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }
@@ -108,7 +109,7 @@ export function EventsView({
       await onUpdateEvent(ev.id, { status: nextStatus });
       onToast(`Updated "${ev.title}" status to ${nextStatus}`);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to update event status', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }
@@ -122,7 +123,7 @@ export function EventsView({
       onToast(`Deleted event "${deleteTarget.title}"`);
       setDeleteTarget(null);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to delete event', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }
@@ -436,7 +437,7 @@ function EventEditorModal({ initialEvent, onClose, onSave }: EventEditorModalPro
         registration_open: registrationOpen,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save event.');
+      setError(formatFriendlyFirestoreError(err));
       setSaving(false);
     }
   };

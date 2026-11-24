@@ -15,6 +15,7 @@ import type {
   StudentProfile,
 } from '../types/spark';
 import { formatTimestamp } from '../lib/formatters';
+import { formatFriendlyFirestoreError } from '../lib/firestoreError';
 
 interface IdeasViewProps {
   ideas: StudentIdea[];
@@ -239,6 +240,7 @@ export function IdeasView({
             );
             setReviewTarget(null);
           }}
+          onError={(msg) => onToast(msg, 'error')}
         />
       )}
     </div>
@@ -249,22 +251,30 @@ function ReviewIdeaModal({
   idea,
   onClose,
   onSubmit,
+  onError,
 }: {
   idea: StudentIdea;
   onClose: () => void;
   onSubmit: (status: Exclude<IdeaStatus, 'pending'>, note: string) => Promise<void>;
+  onError: (msg: string) => void;
 }) {
   const [decision, setDecision] = useState<Exclude<IdeaStatus, 'pending'>>(
     idea.status === 'declined' ? 'declined' : 'approved'
   );
   const [adminNote, setAdminNote] = useState(idea.admin_note || '');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       await onSubmit(decision, adminNote);
+    } catch (err) {
+      const msg = formatFriendlyFirestoreError(err);
+      setError(msg);
+      onError(msg);
     } finally {
       setSaving(false);
     }
@@ -288,6 +298,11 @@ function ReviewIdeaModal({
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 leading-relaxed">
+              {error}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"

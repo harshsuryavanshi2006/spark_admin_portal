@@ -16,6 +16,7 @@ import type {
   SuggestionStatus,
 } from '../types/spark';
 import { formatTimestamp, getInitials } from '../lib/formatters';
+import { formatFriendlyFirestoreError } from '../lib/firestoreError';
 
 interface ClubsViewProps {
   clubs: Club[];
@@ -406,6 +407,7 @@ export function ClubsView({
             );
             setReviewTarget(null);
           }}
+          onError={(msg) => onToast(msg, 'error')}
         />
       )}
 
@@ -418,6 +420,7 @@ export function ClubsView({
             onToast(`Created club "${name}"`);
             setNewClubOpen(false);
           }}
+          onError={(msg) => onToast(msg, 'error')}
         />
       )}
     </div>
@@ -429,6 +432,7 @@ function ReviewSuggestionModal({
   alreadyClubExists,
   onClose,
   onSubmit,
+  onError,
 }: {
   suggestion: ClubSuggestion;
   alreadyClubExists: boolean;
@@ -438,6 +442,7 @@ function ReviewSuggestionModal({
     adminNote: string,
     createClubIfApproved: boolean
   ) => Promise<void>;
+  onError: (msg: string) => void;
 }) {
   const [decision, setDecision] = useState<Exclude<SuggestionStatus, 'pending'>>(
     suggestion.status === 'declined' ? 'declined' : 'approved'
@@ -445,12 +450,18 @@ function ReviewSuggestionModal({
   const [adminNote, setAdminNote] = useState(suggestion.admin_note || '');
   const [createClub, setCreateClub] = useState(!alreadyClubExists);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       await onSubmit(decision, adminNote, decision === 'approved' && createClub);
+    } catch (err) {
+      const msg = formatFriendlyFirestoreError(err);
+      setError(msg);
+      onError(msg);
     } finally {
       setSaving(false);
     }
@@ -475,6 +486,12 @@ function ReviewSuggestionModal({
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 leading-relaxed">
+              {error}
+            </div>
+          )}
+
           {suggestion.reason && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 leading-relaxed">
               <span className="font-semibold text-slate-900">Student reason:</span>{' '}
@@ -569,19 +586,27 @@ function ReviewSuggestionModal({
 function NewClubModal({
   onClose,
   onCreate,
+  onError,
 }: {
   onClose: () => void;
   onCreate: (name: string) => Promise<void>;
+  onError: (msg: string) => void;
 }) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       await onCreate(name.trim());
+    } catch (err) {
+      const msg = formatFriendlyFirestoreError(err);
+      setError(msg);
+      onError(msg);
     } finally {
       setSaving(false);
     }
@@ -603,6 +628,11 @@ function NewClubModal({
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 leading-relaxed">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">Club Name *</label>
             <input

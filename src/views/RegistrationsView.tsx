@@ -7,6 +7,7 @@ import type {
   StudentProfile,
 } from '../types/spark';
 import { downloadCsv, formatTimestamp } from '../lib/formatters';
+import { formatFriendlyFirestoreError } from '../lib/firestoreError';
 
 interface RegistrationsViewProps {
   events: SparkEvent[];
@@ -96,7 +97,7 @@ export function RegistrationsView({
       const name = reg.student_details?.full_name || 'Student';
       onToast(`Marked ${name} as ${next}`);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to update attendance', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }

@@ -86,7 +86,7 @@ export function useSparkData(enabled: boolean) {
         const list: SparkEvent[] = snap.docs.map((d) => {
           const data = d.data() as Partial<SparkEvent>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             title: data.title || 'Untitled Event',
             tag: data.tag || 'General',
             status: data.status || 'upcoming',
@@ -114,7 +114,7 @@ export function useSparkData(enabled: boolean) {
         const list: EventRegistration[] = snap.docs.map((d) => {
           const data = d.data() as Partial<EventRegistration>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             user_id: data.user_id || '',
             event_id: data.event_id || '',
             student_details: data.student_details || {},
@@ -135,7 +135,7 @@ export function useSparkData(enabled: boolean) {
         const list: StudentProfile[] = snap.docs.map((d) => {
           const data = d.data() as Partial<StudentProfile>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             username: data.username || '',
             full_name: data.full_name || '',
             department: data.department || '',
@@ -165,7 +165,7 @@ export function useSparkData(enabled: boolean) {
         const list: Club[] = snap.docs.map((d) => {
           const data = d.data() as Partial<Club>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             name: data.name || 'Unnamed Club',
             member_count: typeof data.member_count === 'number' ? data.member_count : 0,
           };
@@ -183,7 +183,7 @@ export function useSparkData(enabled: boolean) {
         const list: ClubMembership[] = snap.docs.map((d) => {
           const data = d.data() as Partial<ClubMembership>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             user_id: data.user_id || '',
             club_id: data.club_id || '',
             created_at: data.created_at,
@@ -201,7 +201,7 @@ export function useSparkData(enabled: boolean) {
         const list: ClubSuggestion[] = snap.docs.map((d) => {
           const data = d.data() as Partial<ClubSuggestion>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             user_id: data.user_id || '',
             club_name: data.club_name || 'Untitled Club',
             category: data.category || 'General',
@@ -224,7 +224,7 @@ export function useSparkData(enabled: boolean) {
         const list: AdminUser[] = snap.docs.map((d) => {
           const data = d.data() as Partial<AdminUser>;
           return {
-            id: data.id || d.id,
+            id: d.id,
             email: data.email || '',
             name: data.name || '',
             role: data.role || 'admin',
@@ -250,7 +250,7 @@ export function useSparkData(enabled: boolean) {
         const status: IdeaStatus =
           statusRaw === 'approved' || statusRaw === 'declined' ? statusRaw : 'pending';
         return {
-          id: String(raw.id || d.id),
+          id: d.id,
           source_collection: source,
           user_id: raw.user_id ? String(raw.user_id) : undefined,
           author_name: raw.author_name ? String(raw.author_name) : undefined,
@@ -293,7 +293,7 @@ export function useSparkData(enabled: boolean) {
         const list: Announcement[] = snap.docs.map((d) => {
           const raw = d.data() as Partial<Announcement>;
           return {
-            id: raw.id || d.id,
+            id: d.id,
             title: raw.title || 'Announcement',
             message: raw.message || '',
             audience: raw.audience || 'All Students',
@@ -486,19 +486,50 @@ export function useSparkData(enabled: boolean) {
   const addAdminUser = useCallback(
     async (email: string, name: string, role: AdminRole, addedBy: string) => {
       const normalizedEmail = email.trim().toLowerCase();
-      const ref = doc(db, 'admins', normalizedEmail);
+      const trimmedName = name.trim();
       const ts = buildWriteTimestamp(admins.map((a) => a.created_at));
+
+      const autoRef = doc(collection(db, 'admins'));
+      const buildPayload = (id: string, createdAt: ReturnType<typeof buildWriteTimestamp>) => ({
+        id,
+        email: normalizedEmail,
+        name: trimmedName,
+        role,
+        added_by: addedBy,
+        created_at: createdAt,
+      });
+
       try {
-        await setDoc(ref, {
-          id: ref.id,
-          email: normalizedEmail,
-          name: name.trim(),
-          role,
-          added_by: addedBy,
-          created_at: ts,
-        });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `admins/${ref.id}`);
+        await setDoc(autoRef, buildPayload(autoRef.id, ts));
+        return;
+      } catch (primaryErr) {
+        const msg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+        const isPermissionDenied =
+          msg.includes('Missing or insufficient permissions') || msg.includes('permission-denied');
+
+        if (isPermissionDenied) {
+          // Retry with serverTimestamp() if collection was empty and rules require a Firestore timestamp
+          if (admins.length === 0 && typeof ts === 'string') {
+            try {
+              const serverTs = buildWriteTimestamp([{ seconds: 1 }]);
+              await setDoc(autoRef, buildPayload(autoRef.id, serverTs));
+              return;
+            } catch {
+              // Continue to email-keyed fallback
+            }
+          }
+
+          // Fallback in case shared rules key /admins documents by email
+          try {
+            const emailRef = doc(db, 'admins', normalizedEmail);
+            await setDoc(emailRef, buildPayload(emailRef.id, ts));
+            return;
+          } catch {
+            // Fall through and report original error
+          }
+        }
+
+        handleFirestoreError(primaryErr, OperationType.CREATE, `admins/${autoRef.id}`);
       }
     },
     [admins]

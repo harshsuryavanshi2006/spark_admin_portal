@@ -4,6 +4,7 @@ import type { AdminRole, AdminUser } from '../types/spark';
 import { PRIMARY_ADMIN_EMAIL } from '../firebase';
 import { useSparkAuth } from '../context/SparkAuthContext';
 import { formatTimestamp } from '../lib/formatters';
+import { formatFriendlyFirestoreError } from '../lib/firestoreError';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 interface AdminsViewProps {
@@ -46,7 +47,7 @@ export function AdminsView({
       await onUpdateRole(admin.id, role);
       onToast(`Updated ${admin.email} to ${role === 'super_admin' ? 'Super Admin' : 'Admin'}`);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to update admin role', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }
@@ -60,7 +61,7 @@ export function AdminsView({
       onToast(`Removed ${deleteTarget.email} from Admin Team`);
       setDeleteTarget(null);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Failed to remove admin', 'error');
+      onToast(formatFriendlyFirestoreError(err), 'error');
     } finally {
       setBusyId(null);
     }
@@ -262,7 +263,7 @@ function AddAdminModal({
     try {
       await onAdd(normalized, name.trim() || normalized.split('@')[0], role);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add administrator.');
+      setError(formatFriendlyFirestoreError(err));
       setSaving(false);
     }
   };
